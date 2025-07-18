@@ -1,0 +1,32 @@
+{
+  "name": "video-frame-overlay-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development bun run --watch src/index.ts",
+    "build": "cd ../frontend && npm run build && cd ../backend && bun build src/index.ts --outdir dist",
+    "build:frontend": "cd ../frontend && npm run build && cp -r dist ../backend/frontend/",
+    "start": "NODE_ENV=production bun run dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "agenda": "^5.0.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^17.2.0",
+    "hono": "^4.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.2.0",
+    "multer": "^1.4.5-lts.1",
+    "vite": "^5.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/multer": "^1.4.8",
+    "@types/jsonwebtoken": "^9.0.4",
+    "@types/bcryptjs": "^2.4.5",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.2.0",
+    "bun-types": "latest"
+  }
+}

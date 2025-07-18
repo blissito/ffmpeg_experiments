@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Upload Endpoints</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .upload-section {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .result {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+      }
+      .error {
+        background: #ffe6e6;
+        color: #d00;
+      }
+      .success {
+        background: #e6ffe6;
+        color: #080;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 10px 0;
+        cursor: pointer;
+      }
+      input[type="file"] {
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Video Frame Overlay - Upload Test</h1>
+
+    <div class="upload-section">
+      <h2>Upload Limits Info</h2>
+      <button onclick="getUploadInfo()">Get Upload Info</button>
+      <div id="info-result" class="result" style="display: none"></div>
+    </div>
+
+    <div class="upload-section">
+      <h2>Video Upload</h2>
+      <input type="file" id="video-file" accept="video/*" />
+      <button onclick="uploadVideo()">Upload Video</button>
+      <div id="video-result" class="result" style="display: none"></div>
+    </div>
+
+    <div class="upload-section">
+      <h2>Frame Upload</h2>
+      <input type="file" id="frame-file" accept="image/*" />
+      <button onclick="uploadFrame()">Upload Frame</button>
+      <div id="frame-result" class="result" style="display: none"></div>
+    </div>
+
+    <script>
+      async function getUploadInfo() {
+        try {
+          const response = await fetch("/api/upload/info");
+          const data = await response.json();
+
+          const resultDiv = document.getElementById("info-result");
+          resultDiv.style.display = "block";
+          resultDiv.className = "result success";
+          resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } catch (error) {
+          showError("info-result", error.message);
+        }
+      }
+
+      async function uploadVideo() {
+        const fileInput = document.getElementById("video-file");
+        const file = fileInput.files[0];
+
+        if (!file) {
+          showError("video-result", "Please select a video file");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("video", file);
+
+        try {
+          const response = await fetch("/api/upload/video", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          const resultDiv = document.getElementById("video-result");
+          resultDiv.style.display = "block";
+
+          if (response.ok) {
+            resultDiv.className = "result success";
+            resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+          } else {
+            resultDiv.className = "result error";
+            resultDiv.innerHTML = `Error: ${data.error}`;
+          }
+        } catch (error) {
+          showError("video-result", error.message);
+        }
+      }
+
+      async function uploadFrame() {
+        const fileInput = document.getElementById("frame-file");
+        const file = fileInput.files[0];
+
+        if (!file) {
+          showError("frame-result", "Please select an image file");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("frame", file);
+
+        try {
+          const response = await fetch("/api/upload/frame", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          const resultDiv = document.getElementById("frame-result");
+          resultDiv.style.display = "block";
+
+          if (response.ok) {
+            resultDiv.className = "result success";
+            resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+          } else {
+            resultDiv.className = "result error";
+            resultDiv.innerHTML = `Error: ${data.error}`;
+          }
+        } catch (error) {
+          showError("frame-result", error.message);
+        }
+      }
+
+      function showError(elementId, message) {
+        const resultDiv = document.getElementById(elementId);
+        resultDiv.style.display = "block";
+        resultDiv.className = "result error";
+        resultDiv.innerHTML = `Error: ${message}`;
+      }
+    </script>
+  </body>
+</html>

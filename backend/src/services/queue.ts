@@ -1,10 +1,15 @@
 import Agenda from "agenda";
 import { databaseService } from "./database.js";
+import { FFmpegServiceImpl } from "./ffmpeg.js";
 import { ProcessingJobData } from "../../../shared/src/schemas/job.js";
 
 export interface QueueService {
   addJob(jobData: ProcessingJobData): Promise<string>;
   getJobStatus(jobId: string): Promise<any>;
+  getJobResult(
+    jobId: string
+  ): Promise<{ outputPath: string; status: string } | null>;
+  getUserJobs(userId: string, limit?: number): Promise<any[]>;
   cancelJob(jobId: string): Promise<void>;
   initialize(): Promise<void>;
 }
@@ -12,6 +17,11 @@ export interface QueueService {
 export class AgendaQueueService implements QueueService {
   private agenda: Agenda | null = null;
   private isInitialized = false;
+  private ffmpegService: FFmpegServiceImpl;
+
+  constructor() {
+    this.ffmpegService = new FFmpegServiceImpl();
+  }
 
   async initialize(): Promise<void> {
     try {
@@ -81,42 +91,78 @@ export class AgendaQueueService implements QueueService {
       try {
         console.log(`🎬 Starting video processing job: ${data.jobId}`);
 
-        // Update job progress
-        job.progress(10, 100);
+        // Initial progress update
+        job.progress(5, 100);
         await job.save();
 
-        // TODO: This will be implemented in task 4.1 and 4.2
-        // For now, we'll just simulate the processing
         console.log(`📹 Processing video: ${data.videoPath}`);
         console.log(`🖼️  Adding frame: ${data.framePath}`);
         console.log(
           `⏰ Start time: ${data.startTime}s, Duration: ${data.duration}s`
         );
 
-        // Simulate processing time
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        job.progress(50, 100);
+        // Validate inputs
+        job.progress(10, 100);
         await job.save();
 
-        // Simulate more processing
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const isValid = await this.ffmpegService.validateInputs(
+          data.videoPath,
+          data.framePath
+        );
+        if (!isValid) {
+          throw new Error("Invalid input files provided");
+        }
 
+        // Get video metadata for validation
+        job.progress(20, 100);
+        await job.save();
+
+        const metadata = await this.ffmpegService.getVideoMetadata(
+          data.videoPath
+        );
+        console.log(
+          `📊 Video metadata: ${metadata.width}x${metadata.height}, ${metadata.duration}s`
+        );
+
+        // Validate timing parameters
+        if (data.startTime >= metadata.duration) {
+          throw new Error(
+            `Start time (${data.startTime}s) exceeds video duration (${metadata.duration}s)`
+          );
+        }
+
+        if (data.startTime + data.duration > metadata.duration) {
+          throw new Error(`Overlay duration exceeds remaining video time`);
+        }
+
+        // Start video processing
+        job.progress(30, 100);
+        await job.save();
+
+        console.log(`🔄 Starting FFmpeg processing...`);
+        const outputPath = await this.ffmpegService.processVideo(data);
+
+        // Processing completed
         job.progress(100, 100);
         await job.save();
 
         console.log(`✅ Video processing completed: ${data.jobId}`);
+        console.log(`📁 Output saved to: ${outputPath}`);
 
-        // TODO: Update job status in database and notify user
+        // Store the output path in job data for retrieval
+        job.attrs.data.outputPath = outputPath;
+        await job.save();
       } catch (error) {
         console.error(
           `❌ Video processing failed for job ${data.jobId}:`,
           error
         );
-        job.fail(
-          error instanceof Error ? error.message : "Unknown processing error"
-        );
+
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown processing error";
+        job.fail(errorMessage);
         await job.save();
+
         throw error;
       }
     });
@@ -178,6 +224,7 @@ export class AgendaQueueService implements QueueService {
 
       const job = jobs[0];
       const attrs = job.attrs;
+      const data = attrs.data as ProcessingJobData;
 
       return {
         id: jobId,
@@ -187,6 +234,13 @@ export class AgendaQueueService implements QueueService {
         createdAt: attrs.nextRunAt,
         completedAt: attrs.lastFinishedAt,
         failedAt: attrs.failedAt,
+        outputPath: data.outputPath,
+        processingData: {
+          videoPath: data.videoPath,
+          framePath: data.framePath,
+          startTime: data.startTime,
+          duration: data.duration,
+        },
       };
     } catch (error) {
       console.error(`❌ Failed to get job status for ${jobId}:`, error);
@@ -199,6 +253,77 @@ export class AgendaQueueService implements QueueService {
     if (attrs.lastFinishedAt) return "completed";
     if (attrs.lockedAt) return "processing";
     return "pending";
+  }
+
+  /**
+   * Get all jobs for a user (for job history)
+   */
+  async getUserJobs(userId: string, limit: number = 10): Promise<any[]> {
+    if (!this.agenda) {
+      throw new Error("Queue service not initialized");
+    }
+
+    try {
+      const jobs = await this.agenda.jobs(
+        { "data.userId": userId },
+        { limit, sort: { nextRunAt: -1 } }
+      );
+
+      return jobs.map((job) => {
+        const attrs = job.attrs;
+        const data = attrs.data as ProcessingJobData;
+
+        return {
+          id: data.jobId,
+          status: this.getJobStatusFromAttrs(attrs),
+          progress: attrs.progress || 0,
+          error: attrs.failReason,
+          createdAt: attrs.nextRunAt,
+          completedAt: attrs.lastFinishedAt,
+          failedAt: attrs.failedAt,
+          outputPath: data.outputPath,
+        };
+      });
+    } catch (error) {
+      console.error(`❌ Failed to get user jobs for ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  async getJobResult(
+    jobId: string
+  ): Promise<{ outputPath: string; status: string } | null> {
+    if (!this.agenda) {
+      throw new Error("Queue service not initialized");
+    }
+
+    try {
+      const jobs = await this.agenda.jobs({ "data.jobId": jobId });
+
+      if (jobs.length === 0) {
+        return null;
+      }
+
+      const job = jobs[0];
+      const attrs = job.attrs;
+      const data = attrs.data as ProcessingJobData;
+      const status = this.getJobStatusFromAttrs(attrs);
+
+      if (status === "completed" && data.outputPath) {
+        return {
+          outputPath: data.outputPath,
+          status: status,
+        };
+      }
+
+      return {
+        outputPath: data.outputPath || "",
+        status: status,
+      };
+    } catch (error) {
+      console.error(`❌ Failed to get job result for ${jobId}:`, error);
+      throw error;
+    }
   }
 
   async cancelJob(jobId: string): Promise<void> {

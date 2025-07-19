@@ -30,29 +30,29 @@
   - _Requirements: Production deployment_
 
 - [ ] 3. Implement file upload and validation system
-- [ ] 3.1 Create file upload API endpoints
+- [x] 3.1 Create file upload API endpoints
 
   - Implement POST /api/upload/video endpoint with Multer
   - Implement POST /api/upload/frame endpoint with validation
   - Add file type and size validation logic
   - _Requirements: 1.1, 1.2, 6.1, 6.2_
 
-- [ ] 3.2 Implement file storage service with Tigris S3
+- [x] 3.2 Implement file storage service with Tigris S3
 
   - Create S3 client configuration and connection
   - Implement file upload, download, and deletion functions
   - Add error handling for storage operations
   - _Requirements: 1.4, 6.1_
 
-- [ ] 4. Build FFmpeg processing service
-- [ ] 4.1 Create FFmpeg command generation utility
+- [x] 4. Build FFmpeg processing service
+- [x] 4.1 Create FFmpeg command generation utility
 
   - Implement the addCustomFrame function with proper parameter validation
   - Add video metadata extraction using FFprobe
   - Create input validation for video and frame files
   - _Requirements: 3.1, 6.3, 6.4_
 
-- [ ] 4.2 Implement Agenda.js job processor
+- [x] 4.2 Implement Agenda.js job processor
 
   - Create video processing job handler
   - Add progress tracking and error handling

@@ -9,6 +9,7 @@ import {
   FILE_SIZE_LIMITS,
   SUPPORTED_FORMATS,
 } from "../../../shared/src/constants/limits.js";
+import { storageService } from "../services/storage.js";
 
 const app = new Hono();
 
@@ -74,6 +75,20 @@ app.post("/video", async (c) => {
     const arrayBuffer = await file.arrayBuffer();
     await fs.writeFile(filePath, new Uint8Array(arrayBuffer));
 
+    // Upload to S3 storage
+    const s3Key = `videos/${filename}`;
+    let s3Url: string | undefined;
+
+    try {
+      s3Url = await storageService.uploadFile(filePath, s3Key);
+      console.log(`✅ Video uploaded to S3: ${s3Url}`);
+    } catch (s3Error) {
+      console.error(
+        "⚠️  Failed to upload to S3, continuing with local storage:",
+        s3Error
+      );
+    }
+
     // Return file information
     return c.json({
       success: true,
@@ -82,6 +97,8 @@ app.post("/video", async (c) => {
         originalName: file.name,
         filename: filename,
         path: filePath,
+        s3Key: s3Key,
+        s3Url: s3Url,
         size: file.size,
         mimetype: file.type,
         uploadedAt: new Date().toISOString(),
@@ -136,6 +153,20 @@ app.post("/frame", async (c) => {
     const arrayBuffer = await file.arrayBuffer();
     await fs.writeFile(filePath, new Uint8Array(arrayBuffer));
 
+    // Upload to S3 storage
+    const s3Key = `frames/${filename}`;
+    let s3Url: string | undefined;
+
+    try {
+      s3Url = await storageService.uploadFile(filePath, s3Key);
+      console.log(`✅ Frame uploaded to S3: ${s3Url}`);
+    } catch (s3Error) {
+      console.error(
+        "⚠️  Failed to upload to S3, continuing with local storage:",
+        s3Error
+      );
+    }
+
     // Return file information
     return c.json({
       success: true,
@@ -144,6 +175,8 @@ app.post("/frame", async (c) => {
         originalName: file.name,
         filename: filename,
         path: filePath,
+        s3Key: s3Key,
+        s3Url: s3Url,
         size: file.size,
         mimetype: file.type,
         uploadedAt: new Date().toISOString(),

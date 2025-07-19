@@ -60,19 +60,22 @@ process.on("SIGTERM", async () => {
 app.get("/api/health", async (c) => {
   const dbHealth = await databaseService.healthCheck();
   const queueHealth = await queueService.healthCheck();
+  const storageHealth = await storageService.healthCheck();
 
   return c.json({
-    status: dbHealth && queueHealth ? "ok" : "degraded",
+    status: dbHealth && queueHealth && storageHealth ? "ok" : "degraded",
     timestamp: new Date().toISOString(),
     services: {
       database: dbHealth ? "healthy" : "unhealthy",
       queue: queueHealth ? "healthy" : "unhealthy",
+      storage: storageHealth ? "healthy" : "unhealthy",
     },
   });
 });
 
-// Import routes
+// Import routes and services
 import uploadRoutes from "./routes/upload.js";
+import { storageService } from "./services/storage.js";
 
 // API routes
 app.route("/api/upload", uploadRoutes);
